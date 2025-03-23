@@ -35,7 +35,7 @@ Some Python tools
   - Otherwise, it is plain binary data, which can be directly loaded with mmap. You can specify the loading mode with `mmap_mode`.
     - Trick: You can use pandas and numpy's inplace operations to modify the file content directly. Be sure to check `ndarray.flags` when using it.
 
-## TODOS or NOTODES
+## TODOS or NO-TODOS
 There are many things that can be done, but to keep the project simple and at a level understandable by quantitative researchers, many TODOs become NO TODOs. Of course, if anyone thinks something can be improved, feel free to create an issue.
 
 - TODOs

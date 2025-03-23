@@ -35,7 +35,7 @@
   - 否则就是明文的二进制数据, 直接用mmap加载, 加载的时候可以用`mmap_mode`指定加载模式
     - trick: 可以使用pandas和numpy的inplace操作直接修改文件内容. 当然用的时候记得看 `ndarray.flags`
 
-## TODOS or NOTODES
+## TODOS or NO-TODOS
 就很多事可以做，但是为了保证项目比较简单，大约就是量化交易的研究员可以看的懂的水平，很多TODO就变成了 NO TODO. 当然有兄弟们觉得哪些可以搞可以建issue
 
 - TODOs
