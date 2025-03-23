@@ -106,3 +106,24 @@ def init_logging(level, filename=None, not_debugs=['matplotlib', 'diff'], force=
     logger.trace(f"logging init, level={level}")
 
     # logging.info(f"logging init, level={level}")
+
+def make_hash(obj, save_preimage=False, full=False, silent=False):
+    import hashlib
+    m = hashlib.sha256()
+    obj_str = str(obj)
+    # print(f'obj_str = {obj_str}')
+    m.update(obj_str.encode())
+    mhash = m.hexdigest()
+    if save_preimage:
+        if isinstance(save_preimage, str):
+            preimage_dir = os.path.expanduser(f"{save_preimage}")
+            os.makedirs(preimage_dir, exist_ok=True)
+            fn = f'{preimage_dir}/{mhash}'
+        else:
+            fn = os.path.expanduser(f'~/.pyttkl/hashs/{mhash}')
+        if not silent:
+            print(f'fn = {fn}')
+        with open(fn, 'w') as fout:
+            fout.write(obj_str)
+    return mhash if full else mhash[:8]
+

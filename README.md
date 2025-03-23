@@ -22,6 +22,14 @@ Some Python tools
 - `load_tmat(filename, mmap_mode='c')`: Automatically determines the payload type based on the meta information in the file and reads it. If the payload is mmap, you can specify `mmap_mode`.
 - `save_tmat(filename, tmat, compress='zstd')`: Allows compressing the payload with zstd. There are more options in the code. It can also save as mmap.
 
+## Installation
+
+You can install this package using `pip`:
+
+```bash
+pip install .
+```
+
 ## Design
 
 ### tmat format:
