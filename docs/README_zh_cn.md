@@ -25,6 +25,14 @@
 ## Design
 
 ### tmat的格式:
+- 设计初衷
+  - 1. 兼容numpy的ndarray
+  - 2. 兼容pandas的DataFrame
+  - 3. 支持压缩
+  - 4. 支持mmap
+  - 5. 支持多种数据类型
+  - 6. **cpp 和 python都可以 native支持**
+  - 7. **量化研究员看代码就可以看懂**
 - example: `TMT\n{header_length: 954}\n{"columns": ["a", "b", "c"], "rows": [1, 2, 3], "dtype": "int32", "compress": "zstd"}\n{payload}`
 - 头部: 4字节的magic number, `TMT\n`
 - json字符串 `{"header_length": 954}\n`, 如果header_length > 0， 则后面的meta事用lz4压缩的payload长度为`header_length`, 某则就是明文的json字符串
@@ -35,7 +43,7 @@
   - 否则就是明文的二进制数据, 直接用mmap加载, 加载的时候可以用`mmap_mode`指定加载模式
     - trick: 可以使用pandas和numpy的inplace操作直接修改文件内容. 当然用的时候记得看 `ndarray.flags`
 
-## TODOS or NO-TODOS
+## TODOS or NOTODOS
 就很多事可以做，但是为了保证项目比较简单，大约就是量化交易的研究员可以看的懂的水平，很多TODO就变成了 NO TODO. 当然有兄弟们觉得哪些可以搞可以建issue
 
 - TODOs

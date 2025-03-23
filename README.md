@@ -25,6 +25,14 @@ Some Python tools
 ## Design
 
 ### tmat format:
+- **Design Goals**:
+  - 1. Compatible with numpy's ndarray
+  - 2. Compatible with pandas' DataFrame
+  - 3. Supports compression
+  - 4. Supports mmap
+  - 5. Supports multiple data types
+  - 6. **Native support for both C++ and Python**
+  - 7. **Understandable by quantitative researchers by reading the code**
 - Example: `TMT\n{header_length: 954}\n{"columns": ["a", "b", "c"], "rows": [1, 2, 3], "dtype": "int32", "compress": "zstd"}\n{payload}`
 - Header: 4-byte magic number, `TMT\n`
 - JSON string `{"header_length": 954}\n`. If `header_length > 0`, the following meta is a payload compressed with lz4 of length `header_length`. Otherwise, it is a plain JSON string.
