@@ -25,6 +25,13 @@ def trace(self, message, *args, **kws):
         self._log(TRACE_LEVEL_NUM, message, args, **kws)
         logging.Logger.trace = trace
 
+def logging_trace(logger, message, *args, **kws):
+    '''
+    Log a message with level TRACE on the root logger.
+    '''
+    if logger.isEnabledFor(TRACE_LEVEL_NUM):
+        logger.trace(message, *args, **kws)
+
 if True:
     logging.Logger.trace = trace
 

@@ -9,9 +9,9 @@ import zstandard as zstd
 import lz4.frame
 import numpy as np
 import pandas as pd
+from pyttkl.kits import logging_trace
 
 logger = logging.getLogger(__name__)
-
 
 def compress_lz4(data):
     return lz4.frame.compress(data)
@@ -43,7 +43,7 @@ def str_to_dtype(dtype: str) -> np.dtype:
     else:
         raise ValueError(f'Invalid dtype {dtype}')
 
-def read_tmat(file_path: str) -> pd.DataFrame:
+def read_tmat(file_path: str, mmap_mode='c') -> pd.DataFrame:
     '''
     Read a matrix from a file
     '''
@@ -52,83 +52,151 @@ def read_tmat(file_path: str) -> pd.DataFrame:
     magic = fin.readline()
     if magic != b'TMT\n':
         raise ValueError('Invalid matrix file')
-    js_str = fin.readline().decode('utf-8')
+
+    # read the json string
+    params_js = fin.readline().decode('utf-8')
+    try:
+        params = json.loads(params_js)
+    except json.JSONDecodeError as e:
+        logger.error(f'Failed to decode json: {e}')
+        raise e
+
+    compress_header = params.get('header_length', 0)
+    if compress_header > 0:
+        js_str = fin.read(compress_header)
+        js_str = decompress_lz4(js_str)
+    else:
+        js_str = fin.readline().decode('utf-8')
+
     try:
         js = json.loads(js_str)
-    except json.JSONDecodeError:
-        raise ValueError('Invalid json string')
+    except json.JSONDecodeError as e:
+        logger.error(f'Failed to decode json: {e}')
+        raise e
 
     if 'columns' not in js or 'rows' not in js:
         raise ValueError('missing columns or rows in json')
 
-    data = fin.read()
-
-    compress = js.get('compress', False)
     dtype = js.get('dtype', 'float64')
     dtype = str_to_dtype(dtype)
+    compress = js.get('compress', 'zstd')
 
-    if compress:
+    if compress != 'mmap':
+        data = fin.read()
+        if fin is not None:
+            fin.close()
         if compress == 'zstd':
             data = decompress_zstd(data)
         elif compress == 'lz4':
             data = decompress_lz4(data)
         else:
             raise ValueError(f'Invalid compress method {compress}')
+    else:
+        try:
+            memmap = np.memmap(file_path, dtype=dtype, mode=mmap_mode, offset=fin.tell())
+        except Exception as e:
+            logger.error(f'Failed to create memmap: {e}')
+            raise e
+
+        logging_trace(logger, f'loaded memmap {file_path} {dtype} {mmap_mode} {fin.tell()}')
+
+        if fin is not None:
+            fin.close()
+        data = memmap
+
 
     columns = js['columns']
     rows = js['rows']
 
     npv = np.frombuffer(data, dtype=dtype).reshape(len(rows), len(columns))
-
     return pd.DataFrame(npv, columns=columns, index=rows)
 
 def write_tmat(file_path: str,
                df: pd.DataFrame,
                compress: str = 'zstd',
-               dtype: str = 'float64'):
+               compress_header : bool = False,
+               dtype: str = None):
     '''
     Write a matrix to a file
+    file_path: str
+    df: pd.DataFrame
+    compress: str, can be zstd, lz4, mmap
+    dtype: str, can be float32, float64, int32, int64, int16, int8, None
     '''
-    fout = open(file_path, 'wb')
 
-    columns = df.columns
-    rows = df.index.tolist()
+    # check if the DataFrame has multiple dtypes
+    df_dtypes_ = list(df.dtypes.unique())
+    if len(df_dtypes_) > 1:
+        raise ValueError('DataFrame has multiple dtypes')
+    df_dtype = df_dtypes_[0].name
 
-    js = {
-        'columns': columns.tolist(),
-        'rows': rows,
-        'compress': compress,
-        'dtype': dtype
-    }
+    if dtype is None:
+        dtype = df_dtype
 
-    js_str = json.dumps(js)
-    fout.write(b'TMT\n')
-    fout.write(js_str.encode('utf-8'))
-    fout.write(b'\n')
+    if dtype != df_dtype:
+        df = df.astype(dtype)
 
-    data = df.astype(dtype).values.tobytes()
+    with open(file_path, 'wb') as fout:
 
-    if compress:
-        if compress == 'zstd':
-            data = compress_zstd(data)
-        elif compress == 'lz4':
-            data = compress_lz4(data)
+        columns = df.columns.to_list()
+        rows = df.index.tolist()
+
+        js = {
+            'columns': columns,
+            'rows': rows,
+            'compress': compress,
+            'dtype': dtype
+        }
+
+        js_str = json.dumps(js).encode('utf-8')
+        fout.write(b'TMT\n')
+        params = {
+            'header_length': 0
+        }
+        if compress_header:
+            js_str = compress_lz4(js_str)
+            params['header_length'] = len(js_str)
         else:
-            raise ValueError(f'Invalid compress method {compress}')
+            js_str = js_str + b'\n'
+        fout.write(json.dumps(params).encode('utf-8') + b'\n')
+        fout.write(js_str)
 
-    fout.write(data)
-    fout.close()
+        data = df.values.tobytes('C')
+
+        if compress:
+            if compress == 'mmap':
+                pass
+            elif compress == 'zstd':
+                data = compress_zstd(data)
+            elif compress == 'lz4':
+                data = compress_lz4(data)
+            else:
+                raise ValueError(f'Invalid compress method {compress}')
+
+        fout.write(data)
 
 
-def test_read_write():
-    ofn = '/tmp/test_tmat'
+def test_read_write(compress_header=False):
+    ofn = '/tmp/test_tmat.tmt'
     df = pd.DataFrame(np.random.rand(100, 100), columns=[f'col{i}' for i in range(100)])
     df.index = [f'row{i}' for i in range(100)]
-    write_tmat(ofn, df, dtype='float32', compress='zstd')
+    write_tmat(ofn, df, dtype='float32', compress='zstd', compress_header=compress_header)
     df2 = read_tmat(ofn)
     print(df)
     print(df2)
 
+def test_read_write_mmat(compress_header=False):
+    ofn = '/tmp/test_tmat.mmt'
+    N = 10000
+    M = 10000
+    df = pd.DataFrame(np.random.rand(N, M), columns=[f'col{i}' for i in range(M)]).astype('float32')
+    df.index = [f'row{i}' for i in range(N)]
+    write_tmat(ofn, df, compress='mmap', compress_header=compress_header)
+    df2 = read_tmat(ofn)
+    print(df)
+    print(df2)
+    diff = df - df2
+    print('max diff', diff.abs().max().max())
 
 def main():
     from pyttkl import kits
@@ -138,6 +206,7 @@ def main():
     args.update(kits.make_sub_cmd(write_tmat))
     args.update(kits.make_sub_cmd(read_tmat))
     args.update(kits.make_sub_cmd(test_read_write))
+    args.update(kits.make_sub_cmd(test_read_write_mmat))
     args = kits.make_args(args)
     kits.run_cmds(args)
 
