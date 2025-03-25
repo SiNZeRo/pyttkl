@@ -13,19 +13,24 @@ from pyttkl.kits import logging_trace
 
 logger = logging.getLogger(__name__)
 
+
 def compress_lz4(data):
     return lz4.frame.compress(data)
 
+
 def decompress_lz4(data):
     return lz4.frame.decompress(data)
+
 
 def compress_zstd(data):
     cctx = zstd.ZstdCompressor()
     return cctx.compress(data)
 
+
 def decompress_zstd(data):
     dctx = zstd.ZstdDecompressor()
     return dctx.decompress(data)
+
 
 def str_to_dtype(dtype: str) -> np.dtype:
     if dtype == 'float32':
@@ -42,6 +47,7 @@ def str_to_dtype(dtype: str) -> np.dtype:
         return np.int8
     else:
         raise ValueError(f'Invalid dtype {dtype}')
+
 
 def read_tmat(file_path: str, mmap_mode='c') -> pd.DataFrame:
     '''
@@ -62,6 +68,10 @@ def read_tmat(file_path: str, mmap_mode='c') -> pd.DataFrame:
         raise e
 
     compress_header = params.get('header_length', 0)
+    compress = params.get('compress', None)
+    if compress is None:
+        raise ValueError('missing compress in header')
+
     if compress_header > 0:
         js_str = fin.read(compress_header)
         js_str = decompress_lz4(js_str)
@@ -79,7 +89,8 @@ def read_tmat(file_path: str, mmap_mode='c') -> pd.DataFrame:
 
     dtype = js.get('dtype', 'float64')
     dtype = str_to_dtype(dtype)
-    compress = js.get('compress', 'zstd')
+
+    logging_trace(logger, f'js {js}')
 
     if compress != 'mmap':
         data = fin.read()
@@ -93,17 +104,18 @@ def read_tmat(file_path: str, mmap_mode='c') -> pd.DataFrame:
             raise ValueError(f'Invalid compress method {compress}')
     else:
         try:
-            memmap = np.memmap(file_path, dtype=dtype, mode=mmap_mode, offset=fin.tell())
+            memmap = np.memmap(file_path, dtype=dtype,
+                               mode=mmap_mode, offset=fin.tell())
         except Exception as e:
             logger.error(f'Failed to create memmap: {e}')
             raise e
 
-        logging_trace(logger, f'loaded memmap {file_path} {dtype} {mmap_mode} {fin.tell()}')
+        logging_trace(
+            logger, f'loaded memmap {file_path} {dtype} {mmap_mode} {fin.tell()}')
 
         if fin is not None:
             fin.close()
         data = memmap
-
 
     columns = js['columns']
     rows = js['rows']
@@ -111,10 +123,11 @@ def read_tmat(file_path: str, mmap_mode='c') -> pd.DataFrame:
     npv = np.frombuffer(data, dtype=dtype).reshape(len(rows), len(columns))
     return pd.DataFrame(npv, columns=columns, index=rows)
 
+
 def write_tmat(file_path: str,
                df: pd.DataFrame,
                compress: str = 'zstd',
-               compress_header : bool = False,
+               compress_header: bool = False,
                dtype: str = None):
     '''
     Write a matrix to a file
@@ -141,24 +154,28 @@ def write_tmat(file_path: str,
         columns = df.columns.to_list()
         rows = df.index.tolist()
 
+        # write magic
+        fout.write(b'TMT\n')
+
+        # write params
+        params = {
+            'header_length': 0,
+            'compress': compress,
+        }
+        fout.write(json.dumps(params).encode('utf-8') + b'\n')
+
+        # write meta data
         js = {
             'columns': columns,
             'rows': rows,
-            'compress': compress,
             'dtype': dtype
         }
-
         js_str = json.dumps(js).encode('utf-8')
-        fout.write(b'TMT\n')
-        params = {
-            'header_length': 0
-        }
         if compress_header:
             js_str = compress_lz4(js_str)
             params['header_length'] = len(js_str)
         else:
             js_str = js_str + b'\n'
-        fout.write(json.dumps(params).encode('utf-8') + b'\n')
         fout.write(js_str)
 
         data = df.values.tobytes('C')
@@ -178,18 +195,22 @@ def write_tmat(file_path: str,
 
 def test_read_write(compress_header=False):
     ofn = '/tmp/test_tmat.tmt'
-    df = pd.DataFrame(np.random.rand(100, 100), columns=[f'col{i}' for i in range(100)])
+    df = pd.DataFrame(np.random.rand(100, 100), columns=[
+                      f'col{i}' for i in range(100)])
     df.index = [f'row{i}' for i in range(100)]
-    write_tmat(ofn, df, dtype='float32', compress='zstd', compress_header=compress_header)
+    write_tmat(ofn, df, dtype='float32', compress='zstd',
+               compress_header=compress_header)
     df2 = read_tmat(ofn)
     print(df)
     print(df2)
+
 
 def test_read_write_mmat(compress_header=False):
     ofn = '/tmp/test_tmat.mmt'
     N = 10000
     M = 10000
-    df = pd.DataFrame(np.random.rand(N, M), columns=[f'col{i}' for i in range(M)]).astype('float32')
+    df = pd.DataFrame(np.random.rand(N, M), columns=[
+                      f'col{i}' for i in range(M)]).astype('float32')
     df.index = [f'row{i}' for i in range(N)]
     write_tmat(ofn, df, compress='mmap', compress_header=compress_header)
     df2 = read_tmat(ofn)
@@ -197,6 +218,12 @@ def test_read_write_mmat(compress_header=False):
     print(df2)
     diff = df - df2
     print('max diff', diff.abs().max().max())
+
+
+def show_tmat(file_path: str):
+    df = read_tmat(file_path)
+    print(df)
+
 
 def main():
     from pyttkl import kits
@@ -207,6 +234,7 @@ def main():
     args.update(kits.make_sub_cmd(read_tmat))
     args.update(kits.make_sub_cmd(test_read_write))
     args.update(kits.make_sub_cmd(test_read_write_mmat))
+    args.update(kits.make_sub_cmd(show_tmat))
     args = kits.make_args(args)
     kits.run_cmds(args)
 
