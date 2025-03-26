@@ -29,7 +29,7 @@ def compress_zstd(data):
 
 def decompress_zstd(data):
     dctx = zstd.ZstdDecompressor()
-    return dctx.decompress(data)
+    return dctx.decompress(data, max_output_size=24 * 1024 * 1024 * 1024)
 
 
 def str_to_dtype(dtype: str) -> np.dtype:
