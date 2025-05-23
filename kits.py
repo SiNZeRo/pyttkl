@@ -23,7 +23,6 @@ def get_ctx():
 def trace(self, message, *args, **kws):
     if self.isEnabledFor(TRACE_LEVEL_NUM):
         self._log(TRACE_LEVEL_NUM, message, args, **kws)
-        logging.Logger.trace = trace
 
 def logging_trace(logger, message, *args, **kws):
     '''
@@ -40,7 +39,7 @@ def get_logger(name):
 
 
 def init_logging(level, filename=None, not_debugs=['matplotlib', 'diff'], force=False):
-    format_str = "|%(asctime)s.%(msecs)03d| %(name)-10.10s | %(filename)10.10s:%(lineno)-4d | %(funcName)-20.20s | %(levelname)-5.5s | %(message)s"
+    format_str = "|%(asctime)s.%(msecs)03d| %(levelname)-5s | %(filename)10.10s:%(lineno)-4d | %(message)s"
 
     class CustomFormatter(logging.Formatter):
         reset = "\033[1;0m"

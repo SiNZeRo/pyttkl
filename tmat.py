@@ -192,7 +192,6 @@ def write_tmat(file_path: str,
 
         fout.write(data)
 
-
 def test_read_write(compress_header=False):
     ofn = '/tmp/test_tmat.tmt'
     df = pd.DataFrame(np.random.rand(100, 100), columns=[
