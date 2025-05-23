@@ -121,7 +121,7 @@ class DTMat:
         self.fn = None
 
     @staticmethod
-    def read(file_path: str, read_only: bool = True):
+    def open(file_path: str, read_only: bool = True):
         '''
         Read a matrix from a file
         file_path: str
@@ -283,7 +283,7 @@ def test_append_dtmat(ofn):
     df = df.astype('int32')
     write_dtmat(ofn, df, compress='mmap', compress_header=False)
 
-    dtmat = DTMat.read(ofn, read_only=False)
+    dtmat = DTMat.open(ofn, read_only=False)
     print(dtmat.df())
 
     index_ = pd.MultiIndex.from_product([list(range(3, 1024)), list(range(2))])
