@@ -44,7 +44,8 @@ def write_dtmat(file_path: str,
                 df: pd.DataFrame,
                 compress: str = 'zstd',
                 compress_header: bool = False,
-                dtype: str | None = None):
+                dtype: str | None = None,
+                remove_unused_levels: bool = False):
     '''
     Write a matrix to a file
     file_path: str
@@ -52,6 +53,9 @@ def write_dtmat(file_path: str,
     compress: str, can be zstd, lz4, mmap
     dtype: str, can be float32, float64, int32, int64, int16, int8, None
     '''
+
+    if remove_unused_levels:
+        df.index = df.index.remove_unused_levels()
 
 
     df_dtypes = df.dtypes
@@ -328,9 +332,7 @@ class DTMatDB:
 
         from pyttkl.dtmat import write_dtmat
 
-        df.index = df.index.remove_unused_levels()
-
-        write_dtmat(ofn, df, compress=compress)
+        write_dtmat(ofn, df, compress=compress, remove_unused_levels=remove_unused_levels)
 
         return ofn
 
@@ -387,6 +389,9 @@ def test_write_dtmat_db():
     df.columns = ['a', 'b']
     df.index.names = ['DATE', 'TIME']
     df = df.astype('int32')
+
+    df = df.loc[[1]]
+    print(df)
 
     db.write('perp/klines/FwdVWAP_4h', 'SS_BTCETH', df, compress='mmap', remove_unused_levels=True)
 
