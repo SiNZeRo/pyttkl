@@ -5,8 +5,24 @@ import numpy as np
 import pandas as pd
 import mmap
 import logging
+from pyttkits import kits
+import pandas as pd
+import os
+import errno
+import fcntl
+import time
+from datetime import datetime
+from collections import defaultdict
+import os
+import tqdm
+import numpy as np
+import functools
+
+import logging
+import duckdb
 
 logger = logging.getLogger(__name__)
+
 
 def to_upper_power2(size):
     '''
@@ -268,6 +284,69 @@ class DTMat:
         else:
             raise ValueError(f'not support append for {self._compress}')
 
+class DTMatDB:
+
+    def __init__(self, dbpath='/data/public/futures/tscache/bar/sandbox/tian/ctadmatv0/'):
+        self.dbpath = os.path.expanduser(dbpath)
+        self.interval = '1m'  # Default interval
+
+    def use_interval(self, interval):
+        """
+        Set the interval for the database operations.
+        """
+        self.interval = interval
+        return self
+
+    def _path(self, symbol, name, interval=''):
+        if interval == '':
+            interval = self.interval
+        ofn = f'{self.dbpath}/{interval}/{name}/{symbol}.dtmat'
+        return ofn
+
+    def get(self, name, symbol, dates='', interval=''):
+        if interval == '':
+            interval = self.interval
+        # ofn = '/data/public/futures/tscache/bar/sandbox/tian/ctadmatv0/1m/perp/klines/FwdVWAP_4h/SS_BTCETH.dtmat'
+        ofn = self._path(symbol, name, interval)
+        if not os.path.exists(ofn):
+            raise ValueError(f"file not found: {ofn}")
+
+        df = DTMat.open(ofn).df()
+
+        if dates != '':
+            start_date, end_date = dates.split('-')
+            df = df.loc[start_date:end_date]
+
+        return df
+
+    def write(self, name, symbol, df, interval='', compress='mmap', remove_unused_levels=False):
+        if interval == '':
+            interval = self.interval
+        ofn = self._path(symbol, name, interval)
+        if not os.path.exists(os.path.dirname(ofn)):
+            os.makedirs(os.path.dirname(ofn), exist_ok=True)
+
+        from pyttkl.dtmat import write_dtmat
+
+        df.index = df.index.remove_unused_levels()
+
+        write_dtmat(ofn, df, compress=compress)
+
+        return ofn
+
+    def has(self, name, symbol, dates_range='', interval=''):
+        if interval == '':
+            interval = self.interval
+        ofn = self._path(symbol, name, interval)
+        if dates_range != '':
+            df = self.get(symbol, name, dates_range, interval)
+            start_date, end_date = dates.split('-')
+            if start_date <= df.index[0] and end_date >= df.index[-1]:
+                return True
+        else:
+            return os.path.exists(ofn)
+
+
 def test_read_dtmat(ifn):
     '''
     Test read dtmat
@@ -300,6 +379,17 @@ def test_append_dtmat(ofn):
     print('new_df after append')
     print(dtmat.df())
 
+
+def test_write_dtmat_db():
+    db = DTMatDB('/data/public/futures/tscache/bar/sandbox/tian/ctadmatv_test/')
+    index_ = pd.MultiIndex.from_product([list(range(3)), list(range(2))])
+    df = pd.DataFrame(np.arange(12).reshape(6, 2), index=index_)
+    df.columns = ['a', 'b']
+    df.index.names = ['DATE', 'TIME']
+    df = df.astype('int32')
+
+    db.write('perp/klines/FwdVWAP_4h', 'SS_BTCETH', df, compress='mmap', remove_unused_levels=True)
+
 def main():
     from pyttkl import kits
 
@@ -307,6 +397,7 @@ def main():
     args = {'__subcmd__': []}
     args.update(kits.make_sub_cmd(test_read_dtmat))
     args.update(kits.make_sub_cmd(test_append_dtmat))
+    args.update(kits.make_sub_cmd(test_write_dtmat_db))
     args = kits.make_args(args)
     kits.run_cmds(args)
 
