@@ -21,7 +21,6 @@ def compress_lz4(data):
 def decompress_lz4(data):
     return lz4.frame.decompress(data)
 
-
 def compress_zstd(data):
     cctx = zstd.ZstdCompressor()
     return cctx.compress(data)
@@ -52,6 +51,7 @@ def str_to_dtype(dtype: str) -> np.dtype:
 def read_tmat(file_path: str, mmap_mode='c') -> pd.DataFrame:
     '''
     Read a matrix from a file
+
     '''
     fin = open(file_path, 'rb')
 
@@ -104,8 +104,7 @@ def read_tmat(file_path: str, mmap_mode='c') -> pd.DataFrame:
             raise ValueError(f'Invalid compress method {compress}')
     else:
         try:
-            memmap = np.memmap(file_path, dtype=dtype,
-                               mode=mmap_mode, offset=fin.tell())
+            memmap = np.memmap(file_path, dtype=dtype, mode=mmap_mode, offset=fin.tell())
         except Exception as e:
             logger.error(f'Failed to create memmap: {e}')
             raise e

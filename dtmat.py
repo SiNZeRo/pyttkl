@@ -28,7 +28,7 @@ def write_dtmat(file_path: str,
                 df: pd.DataFrame,
                 compress: str = 'zstd',
                 compress_header: bool = False,
-                dtype: str = None):
+                dtype: str | None = None):
     '''
     Write a matrix to a file
     file_path: str
@@ -56,6 +56,7 @@ def write_dtmat(file_path: str,
     columns = df.columns.to_list()
     levels = [list(x) for x in df.index.levels]
 
+    logger.debug("write dtmat: %s", file_path)
     with open(file_path, 'wb') as fout:
 
         # write magic
@@ -171,7 +172,7 @@ class DTMat:
 
             # logger.debug("mmap data shape: %s", self._data.shape)
         else:
-            self._data = fin.read()
+            self._data = self.fn.read()
             if comppress_mode == 'zstd':
                 self._data = decompress_zstd(self._data)
             elif comppress_mode == 'lz4':
@@ -231,6 +232,8 @@ class DTMat:
     def __repr__(self):
         return repr(self._df)
 
+    def __str__(self):
+        return str(self._df)
 
     def append_df(self, df: pd.DataFrame):
         '''
@@ -310,4 +313,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
